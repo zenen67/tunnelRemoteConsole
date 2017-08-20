@@ -34,6 +34,7 @@ Ex:
 }
 # Extract command lines parameters and test it
 function get_parameters(){
+ echo $*
    while [ "$1" ]
    do
       case $1 in
@@ -42,7 +43,7 @@ function get_parameters(){
              shift
            ;;
          --browser)
-             browser='true'
+             browser='open'
              shift  
            ;;
          --ip_gateway_SSH)
@@ -62,7 +63,7 @@ function get_parameters(){
              shift
            ;;
          --username)
-             localIP=$2
+             username=$2
              shift
            ;;
          --help)
@@ -76,29 +77,31 @@ function get_parameters(){
    done
 }
 function addIP(){
-  sudo ip addr add $IP_LOCAL/32 dev lo0
+  if [ $(uname) == 'Darwin' ]; then
+  sudo ipconfig set lo0 MANUAL $localIP
+  elif [ $(uname) == 'Linux' ];then
+  sudo ip addr add $localIP/32 dev lo
+  fi
 }
 function delIP(){
-  sudo ip addr del $IP_LOCAL/32 dev lo0
+  if [ $(uname) == 'Darwin' ]; then
+    sudo ipconfig set lo0 NONE localIP
+  elif [ $(uname) == 'Linux' ];then
+    sudo ip addr del $localIP/32 dev lo
+  fi
 }
 function openbrowser(){
-  if [ $(uname) == 'Darwin']; then
-    open -a "$browser_path" -new-window http://$local_ip
-  elif [ $(uname) == 'Linux' ];then
-     $browser_path -new-window http://$local_ip &
-else
-  echo "Not supported platform"
-  exit 1
-fi
+     $browser_path -new-window http://$localIP &
 }
 function createtunnel(){
   case $hwid in
          hp)
-           sudo ssh -p $port_gateway_SSH -L $localIP:22:$remoteIP:22 \
+	 
+          sudo ssh -p $port_gateway_SSH -L $localIP:22:$remoteIP:22 \
              -L $localIP:23:$remoteIP:23 -L $localIP:80:$remoteIP:80\
              -L $localIP:443:$remoteIP:443  -L $localIP:3389:$remoteIP:3389\
              -L $localIP:17988:$remoteIP:17988  -L $localIP:9300:$remoteIP:9300\
-             -L $localIP:17990:$remoteIP:17990  -L $localIP:3002:$remoteIP:3002 \ 
+             -L $localIP:17990:$remoteIP:17990  -L $localIP:3002:$remoteIP:3002\
              $username@$ip_gateway_SSH
              ;;
          huawei)
@@ -116,15 +119,17 @@ function createtunnel(){
   esac           
 }
 # MAIN
-get_parameters
-if [ "$local_ip" != "127.0.0.1" ]; then
-   addIP
+get_parameters "$@"
+if [ "$localIP" != "127.0.0.1" ]; then
+  echo [INFO] Add IP in loopback interface.
+  addIP
 fi
-if [ browser =='true' ]; then
+if [ browser == 'open' ]; then
+  echo [INFO] OPEN A COMPATIBLE BROWSER
   openbrowser
 fi
 createtunnel
-if [ "$local_ip" != "127.0.0.1" ]; then
+if [ "$localIP" != "127.0.0.1" ]; then
    delIP
 fi
 exit 0
